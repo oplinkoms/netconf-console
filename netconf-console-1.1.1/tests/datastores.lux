@@ -1,0 +1,54 @@
+[include common.luxinc]
+
+
+[macro restart-startup]
+    [my currshell=$LUX_SHELLNAME]
+[shell confd]
+    !confd --stop && confd -c confd.conf_startup --addloadpath $CONFD_DIR/etc/confd
+    !confd --status
+    ?startup:
+[shell $currshell]
+[endmacro]
+
+[invoke initialize]
+
+[macro test-copy-config]
+    ?$ok_reply
+    !$ncc_cmd --get-config --db candidate
+    [invoke default-lease-test 30M]
+    !$ncc_cmd --discard
+    ?SH-PROMPT
+[endmacro]
+
+[shell ncc]
+    [progress candidate]
+    !$ncc_cmd --copy-config conf/defaultLeaseTime-30m.xml --db candidate
+    [invoke test-copy-config]
+    !cat conf/defaultLeaseTime-30m.xml | $ncc_cmd --copy-config --db candidate
+    [invoke test-copy-config]
+    [progress startup]
+[shell confd]
+    !awk 'cd{gsub("true", "false")}st{gsub("false", "true")}{print; cd=st=0}/<startup>/{st=1}/<(candidate|confirmed-commit)>/{cd=1}' confd.conf >| confd.conf_startup
+    !rm confd-cdb/*.cdb
+    [invoke restart-startup]
+[shell ncc]
+    !$ncc_cmd --edit-config conf/defaultLeaseTime-30m.xml
+    ?SH-PROMPT
+    !$ncc_cmd --get-config -x /dhcp
+    [invoke default-lease-test 30M]
+    [invoke restart-startup]
+    !$ncc_cmd --get-config -x /dhcp
+    [invoke empty-data]
+    !$ncc_cmd --edit-config conf/defaultLeaseTime-30m.xml
+    ?SH-PROMPT
+    !$ncc_cmd --copy-running-to-startup
+    ?$ok_reply
+    [invoke restart-startup]
+    !$ncc_cmd --get-config -x /dhcp
+    [invoke default-lease-test 30M]
+
+[cleanup]
+    !rm -f conf/confd-cdb/*.cdb conf/confd.conf_startup
+    ?SH-PROMPT
+    !confd --stop
+    ?SH-PROMPT

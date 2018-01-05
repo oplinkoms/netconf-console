@@ -1,0 +1,61 @@
+[include common.luxinc]
+
+[invoke initialize]
+
+[shell ncc]
+    [progress subscribe]
+    !$ncc_cmd -i
+    ?$ncc_prompt
+    !create-subscription test-stream
+    ?$ok_reply
+    ?$ncc_prompt
+[shell pynotifs]
+    -Error|Exception
+    !cd conf
+    !PYTHONPATH=.:$CONFD_DIR/src/confd/pyapi python
+    ?>>>
+    !import notif_utils
+    ?>>>
+    !stream = notif_utils.init()
+    ?>>>
+    !notif_utils.notify_value(stream, 'abcd')
+    ?>>>
+[shell ncc]
+    """?
+    <notification xmlns="urn:ietf:params:xml:ns:netconf:notification:1.0"><eventTime>.*</eventTime>
+    <pythonnotif xmlns='http://example.com/ns/notifier'>
+      <whatsup>abcd</whatsup>
+    </pythonnotif>
+    </notification>
+    """
+
+[shell ncc]
+    !$_CTRL_D_
+    ?SH-PROMPT:
+    [progress xpath]
+    !$ncc_cmd -i
+    ?$ncc_prompt
+    !create-subscription test-stream -x //whatsup[contains(.,"a")]
+    ?$ok_reply
+    ?$ncc_prompt
+[shell pynotifs]
+    !notif_utils.notify_value(stream, 'abcd')
+    ?>>>
+    !notif_utils.notify_value(stream, 'efgh')
+    ?>>>
+    !notif_utils.notify_value(stream, 'abcd')
+    ?>>>
+[shell ncc]
+    """?
+    <notification xmlns="urn:ietf:params:xml:ns:netconf:notification:1.0"><eventTime>.*</eventTime>
+    <pythonnotif xmlns='http://example.com/ns/notifier'>
+      <whatsup>abcd</whatsup>
+    </pythonnotif>
+    </notification>
+    <\?xml version="1.0" encoding="UTF-8"\?>
+    <notification xmlns="urn:ietf:params:xml:ns:netconf:notification:1.0"><eventTime>.*</eventTime>
+    <pythonnotif xmlns='http://example.com/ns/notifier'>
+      <whatsup>abcd</whatsup>
+    </pythonnotif>
+    </notification>
+    """

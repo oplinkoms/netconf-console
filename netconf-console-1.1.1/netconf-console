@@ -1,0 +1,59 @@
+#!/usr/bin/env python
+
+from __future__ import print_function
+import sys
+import glob
+import os
+
+
+class FakeParamiko(object):
+    @staticmethod
+    def HostKeys():
+        return None
+
+cwd = os.path.abspath(os.path.dirname(sys.argv[0]))
+
+
+def try_import(module, whl_name=None):
+    try:
+        return __import__(module), None
+    except ImportError:
+        if whl_name is None:
+            whl_name = module
+        return try_wheel_import(module, whl_name)
+
+
+def try_wheel_import(module, whl_name):
+    wheels = glob.glob(os.path.join(cwd, whl_name + "-*.whl"))
+    if wheels != []:
+        sys.path.append(wheels[0])
+    try:
+        return __import__(module), None
+    except ImportError as e:
+        return None, e
+
+
+def format_exc(exc):
+    return "(%s: %s)" % (exc.__class__.__name__, exc)
+
+
+paramiko = None
+pyasn1, exc = try_import("pyasn1")
+if pyasn1 is not None:
+    paramiko, exc = try_import("paramiko")
+if paramiko is None:
+    if "--help" not in sys.argv and "--tcp" not in sys.argv:
+        print("Paramiko library or its dependencies could not be imported, cannot operate without --tcp.",
+              format_exc(exc),
+              file=sys.stderr)
+        sys.exit(-1)
+    sys.modules["paramiko"] = FakeParamiko()
+ncclient, exc = try_import("ncclient")
+if ncclient is None:
+    print("Importing ncclient failed, cannot continue.", format_exc(exc), file=sys.stderr)
+    sys.exit(-1)
+ncc, exc = try_wheel_import("ncc", "netconf_console")
+if ncc is None:
+    print("The main module failed to load, cannot continue.", format_exc(exc), file=sys.stderr)
+    sys.exit(-1)
+sys.exit(ncc.ncc.main())

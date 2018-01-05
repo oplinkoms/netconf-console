@@ -1,0 +1,56 @@
+[include common.luxinc]
+
+[config timeout=1000]
+
+[macro clean]
+    !$_CTRL_U_
+    ?$ncc_prompt
+[endmacro]
+
+[shell confd]
+    [timeout 5]
+    [invoke initialize]
+    [timeout]
+
+[shell ncc]
+    !$ncc_cmd -i
+    ?$ncc_prompt
+    ~hel$_TAB_
+    ?hello
+    [invoke clean]
+    ~ge$_TAB_
+    ?ge.t
+    ~$_TAB_$_TAB_
+    ?^get +get-config +get-schema *$
+    ~-co$_TAB_
+    ?get-config
+    ~ --$_TAB_$_TAB_
+    """?
+    --db +--outputStyle +--with-defaults +--xpath *
+    """
+    ~out$_TAB_ noa$_TAB_
+    ?--outputStyle noaaa
+    [invoke clean]
+    ~kill$_TAB_
+    ?kill-session
+    [invoke clean]
+    ~com$_TAB_ $_TAB_$_TAB_
+    ?^--timeout +confirmed *$
+    [invoke clean]
+    ~copy$_TAB_$_TAB_$_TAB_
+    ?copy-config +copy-running-to-startup *$
+    ~co$_TAB_ -$_TAB_ $_TAB_$_TAB_
+    ?--db
+    ?^candidate +running *$
+    [invoke clean]
+    ~edi$_TAB_
+    ?edit-config
+    ~ --$_TAB_$_TAB_
+    ?^--db +--test-option *$
+    ~tes$_TAB_ $_TAB_$_TAB_
+    ?^set +test-only +test-then-set *$
+    [invoke clean]
+    ~edit-config /et$_TAB_
+    ~serv$_TAB_
+    ?edit-config /etc/services
+    [invoke clean]

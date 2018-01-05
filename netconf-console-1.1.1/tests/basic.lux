@@ -1,0 +1,72 @@
+[include common.luxinc]
+
+[invoke initialize]
+
+[shell ncc]
+    [progress hello]
+    !$ncc_cmd --hello
+    ???<nc:capability>http://tail-f.com/ns/example/dhcpd?module=dhcpd</nc:capability>
+    ?SH-PROMPT
+
+    [progress get]
+    !$ncc_cmd --get
+    ???<aaa
+    ???<netconf-state
+    !$ncc_cmd --get -x /netconf-state/schemas
+    """???
+          <schema>
+            <identifier>dhcpd</identifier>
+            <version/>
+            <format>yang</format>
+            <namespace>http://tail-f.com/ns/example/dhcpd</namespace>
+            <location>NETCONF</location>
+          </schema>
+    """
+    """???
+          <schema>
+            <identifier>notifier</identifier>
+            <version/>
+            <format>yang</format>
+            <namespace>http://example.com/ns/notifier</namespace>
+            <location>NETCONF</location>
+          </schema>
+    """
+    !$ncc_cmd --get -s noaaa | grep '<aaa' || echo pas''sed
+    ?passed
+    ?SH-PROMPT
+
+    [progress get-config]
+    !$ncc_cmd --get-config
+    ???<aaa
+    ?SH-PROMPT
+    !$ncc_cmd --get-config -x '/aaa/authentication//name[. = "admin"]'
+    """???
+    <data xmlns="urn:ietf:params:xml:ns:netconf:base:1.0" xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
+      <aaa xmlns="http://tail-f.com/ns/aaa/1.1">
+        <authentication>
+          <users>
+            <user>
+              <name>admin</name>
+            </user>
+          </users>
+        </authentication>
+      </aaa>
+    </data>
+
+    SH-PROMPT
+    """
+    !$ncc_cmd --get-config -s noaaa | grep '<aaa' || echo pas''sed
+    ?passed
+    ?SH-PROMPT
+
+    [progress get-schema]
+    !$ncc_cmd --get-schema dhcpd
+    """???
+      typedef loglevel {
+        type enumeration {
+            enum kern;
+            enum mail;
+            enum local7;
+        }
+      }
+    """

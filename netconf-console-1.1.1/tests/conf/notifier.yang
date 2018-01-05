@@ -1,0 +1,10 @@
+module notifier {
+  namespace "http://example.com/ns/notifier";
+  prefix "notifier";
+
+  notification pythonnotif {
+    leaf whatsup {
+      type string;
+    }
+  }
+}

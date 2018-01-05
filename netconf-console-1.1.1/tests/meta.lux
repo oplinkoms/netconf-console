@@ -1,0 +1,132 @@
+[doc Tests of various meta-features: running in different environments, error reporting.]
+
+[include common.luxinc]
+
+[invoke initialize]
+
+[macro download_install package]
+    [timeout 10]
+    ![ -f $package*.whl ] || pip download $package
+    !echo ==$?==
+    ???==0==
+    [timeout]
+    !ls $package-*.whl
+    ?$package-([0-9.]+).*.whl
+    [local version=$1]
+[endmacro]
+
+[macro py_install package version]
+    # !cp -v $package-$version*.whl runtime
+    # ?'$package.*' -> 'runtime/$package.*'
+    !pip install $package-$version*.whl
+    ?Successfully installed.* $package-$version|Requirement already satisfied: $package==$version
+[endmacro]
+
+[macro install package]
+    !pip install $package
+    ?Successfully installed.* $package|Requirement already satisfied: $package
+    # removed due to issues Python release handling
+    # [invoke download_install $package]
+    # [invoke py_install $package $version]
+[endmacro]
+
+[macro test_environment pyrel]
+    [invoke install lxml]
+    [progress no paramiko]
+    !cd runtime
+    !./$hello
+    ?Paramiko library or its dependencies could not be imported, cannot operate without --tcp. \(ImportError: No module named .?(paramiko|cryptography|pyasn1).?\)
+    !./$tcphello
+    ?The main module failed to load, cannot continue. \(ImportError: No module named .?six.?\)
+    [invoke install six]
+    !./$tcphello
+    ???<nc:capability>http://tail-f.com/ns/example/dhcpd?module=dhcpd</nc:capability>
+    [progress install paramiko]
+    !cd ..
+    [invoke install cryptography]
+    [invoke install bcrypt]
+    [invoke install PyNaCl]
+    [timeout 100]
+    !cd runtime
+    ![ -f paramiko*.whl ] || pip download paramiko
+    ![ -f pyasn1*.whl ] || pip download pyasn
+    !echo ==$?==
+    ???==0==
+
+    [timeout]
+    !./$hello
+    ???<nc:capability>http://tail-f.com/ns/example/dhcpd?module=dhcpd</nc:capability>
+    !pip install ./ncclient*py$pyrel*.whl
+    !pip install ./paramiko*.whl
+    !pip install ./netconf_console*.whl
+    !cd ..
+    !$hello
+    ???<nc:capability>http://tail-f.com/ns/example/dhcpd?module=dhcpd</nc:capability>
+[endmacro]
+
+[global workdir=/tmp/ncc_meta_dir]
+[shell ncc]
+    [local prompt=$workdir% ]
+    [local prompt2=(env2) $prompt]
+    [local prompt3=(env3) $prompt]
+    [local rtprompt=$workdir/runtime% ]
+    [local hello=netconf-console --hello]
+    [local tcphello=netconf-console --hello --tcp --port=2023]
+    # need bash capabilities
+    !bash
+    [progress installing]
+    !export PS1='\w% '
+    !mkdir -p $workdir
+    !pushd $workdir
+    ?$prompt
+    [timeout 10]
+    !virtualenv -p python2 env2
+    ?Installing setuptools, pkg_resources, pip
+    ?$prompt
+    !virtualenv -p python3 env3
+    ?Installing setuptools, pkg_resources, pip
+    ?$prompt
+    [timeout]
+    !source env3/bin/activate
+    ??$prompt3
+    !pushd
+    !cd ..
+    !python setup.py bdist_wheel
+    !mkdir -p $workdir/runtime
+    !/bin/cp -v dist/netconf_console*.whl $workdir/runtime
+    !/bin/cp -v netconf-console $workdir/runtime
+    ?.netconf-console.* -> .*
+    !pushd
+    ??$prompt3
+    [timeout 20]
+    !git clone https://github.com/ncclient/ncclient
+    ??$prompt3
+    [timeout]
+    !cd ncclient
+    !python setup.py bdist_wheel && echo wheel''ed
+    ?wheeled
+    !deactivate
+    !source ../env2/bin/activate
+    !python setup.py bdist_wheel && echo wheel''ed
+    ?wheeled
+    !/bin/cp dist/*.whl ../runtime
+    !cd ..
+    !deactivate
+
+    !source env2/bin/activate
+    ??$prompt2
+    [progress python2]
+    [invoke test_environment 2]
+    !deactivate
+    !source env3/bin/activate
+    ??$prompt3
+    [progress python3]
+    [invoke test_environment 3]
+    !deactivate
+    ??$prompt
+
+[cleanup]
+    !cd $workdir
+    ?SH-PROMPT
+    !rm -rf ncclient env2 env3 runtime
+    ?SH-PROMPT

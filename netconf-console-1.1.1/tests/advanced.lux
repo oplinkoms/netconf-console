@@ -1,0 +1,169 @@
+[include common.luxinc]
+
+[invoke initialize]
+
+[global invalid_cfg_file=/tmp/_config_invalid.xml]
+[shell ncc]
+    [progress kill-session]
+[shell testnc]
+    !$ncc_cmd -i
+    ?$ncc_prompt
+[shell cli]
+    !confd_cli -u admin
+    ?admin connected from
+    ?$cli_prompt
+    !show users
+    ? ([0-9]*) +admin +netconf
+    [global ssid=$1]
+    ?$cli_prompt
+[shell ncc]
+    !$ncc_cmd --kill-session $ssid
+    ?$ok_reply
+    ?SH-PROMPT
+[shell cli]
+    !show users
+    """?
+    SID +USER  +.*
+    \*[0-9]* +admin +cli +127.0.0.1.*
+    \[ok\].*
+    $cli_prompt 
+    """
+[shell testnc]
+    !
+    ?TransportError
+    ?SH-PROMPT
+
+[shell ncc]
+    [progress lock/unlock]
+    !$ncc_cmd -i
+    ?$ncc_prompt
+    !lock
+    ?$ok_reply
+[shell cli]
+    !show users
+    ? [0-9]* +admin +netconf .* exclusive
+    ?$cli_prompt
+    !configure exclusive
+    ?Error: configuration database locked
+    ?$cli_prompt
+[shell ncc]
+    !unlock
+    ?$ok_reply
+[shell cli]
+    !configure exclusive
+    ?\[edit\]
+    ?admin@.*%
+    !exit
+    ?$cli_prompt
+[shell ncc]
+    !$_CTRL_D_
+    ?SH-PROMPT
+
+[shell ncc]
+    [progress edit]
+    !$ncc_cmd --get-config -x /dhcp
+    [invoke empty-data]
+    !$ncc_cmd --edit-config conf/defaultLeaseTime-30m.xml
+    ?$ok_reply
+    ?SH-PROMPT
+    !$ncc_cmd --get-config -x /dhcp
+    [invoke default-lease-test 30M]
+    [progress candidate/commit]
+    !sed s/30M/20M/ conf/defaultLeaseTime-30m.xml | $ncc_cmd --edit-config --db candidate
+    ?$ok_reply
+    ?SH-PROMPT
+    !$ncc_cmd --get-config -x /dhcp
+    [invoke default-lease-test 30M]
+    !$ncc_cmd --get-config -x /dhcp --db candidate
+    [invoke default-lease-test 20M]
+    !$ncc_cmd --commit
+    !$ncc_cmd --get-config -x /dhcp
+    [invoke default-lease-test 20M]
+
+    [progress set/delete/create]
+    !$ncc_cmd --ns dhcp=http://tail-f.com/ns/example/dhcpd --set /dhcp:dhcp/defaultLeaseTime=PT40M
+    ?$ok_reply
+    !$ncc_cmd --get-config -x /dhcp
+    [invoke default-lease-test 40M]
+    !$ncc_cmd --ns dhcp=http://tail-f.com/ns/example/dhcpd --set /dhcp:dhcp/defaultLeaseTime=PT20M
+    ?$ok_reply
+    !$ncc_cmd -i --ns dhcp=http://tail-f.com/ns/example/dhcpd
+    ?$ncc_prompt
+    !create "/dhcp:dhcp/SharedNetworks/sharedNetwork[name='network name']"
+    ?$ok_reply
+    !get-config /dhcp
+    """?
+     *<SharedNetworks>
+     *<sharedNetwork>
+     *<name>network name</name>
+     *</sharedNetwork>
+     *</SharedNetworks>
+    """
+    !delete /dhcp:dhcp/SharedNetworks
+    ?$ok_reply
+    !get-config /dhcp
+    [invoke default-lease-test-prompt 20M $ncc_prompt]
+    !$_CTRL_D_
+    ?SH-PROMPT
+
+    [progress filename]
+    !$ncc_cmd conf/cmd-set-dhcp-defaultLeaseTime-1h.xml
+    ?$ok_reply
+    !$ncc_cmd --get /dhcp
+    [invoke default-lease-test 1H]
+    !sed 's/PT1H/PT20M/' conf/cmd-set-dhcp-defaultLeaseTime-1h.xml | $ncc_cmd -
+    ?$ok_reply
+    !$ncc_cmd --get /dhcp
+    [invoke default-lease-test 20M]
+    
+
+    [progress confirmed commit]
+    !$ncc_cmd -i
+    ?$ncc_prompt
+    !edit-config conf/defaultLeaseTime-30m.xml --db candidate
+    ?$ok_reply
+    !commit confirmed --timeout 3
+    ?$ok_reply
+    !get-config -x /dhcp
+    [invoke default-lease-test-prompt 30M $ncc_prompt]
+    !sleep 3
+    ?$ncc_prompt
+    !get-config -x /dhcp
+    [invoke default-lease-test-prompt 20M $ncc_prompt]
+    !$_CTRL_D_
+    ?SH-PROMPT
+
+    [progress edit/validate/discard]
+    !sed s/30M/0M/ conf/defaultLeaseTime-30m.xml | $ncc_cmd --edit-config --db candidate --test-option set
+    ?$ok_reply
+    ?SH-PROMPT
+    !$ncc_cmd --get-config -x /dhcp
+    [invoke default-lease-test 20M]
+    !$ncc_cmd --get-config -x /dhcp --db candidate
+    [invoke default-lease-test 0S]
+    !$ncc_cmd --validate candidate
+    ?rpc-error
+    ?must-violation
+    ?SH-PROMPT
+    !$ncc_cmd --get-config --db candidate | sed 's/data\([ >]\)/config\1/' > $invalid_cfg_file
+    ?SH-PROMPT
+    !$ncc_cmd --discard-changes
+    ?SH-PROMPT
+    !$ncc_cmd --get-config -x /dhcp --db candidate
+    [invoke default-lease-test 20M]
+    !$ncc_cmd --edit-config $invalid_cfg_file --test test-only
+    ?rpc-error
+    ?unknown-element
+    ?SH-PROMPT
+
+    [progress rpc]
+    !$ncc_cmd --get-config -x /dhcp
+    [invoke default-lease-test 20M]
+    !$ncc_cmd --edit-config conf/defaultLeaseTime-30m.xml --dry | xmlstarlet sel -t -m '/*/*' -c .  | $ncc_cmd --rpc
+    ?$ok_reply
+    !$ncc_cmd --get-config -x /dhcp
+    [invoke default-lease-test 30M]
+
+[cleanup]
+    !rm -f $invalid_cfg_file
+    ?SH-PROMPT

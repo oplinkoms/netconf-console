@@ -1,0 +1,46 @@
+[config require=CONFD_DIR]
+[config timeout=5000]
+[config cleanup_timeout=5000]
+
+[global ncc_prompt=netconf> ]
+[global cli_prompt=admin@.*> ]
+[global ok_reply=<ok xmlns=.*>]
+[config var=pythonpath=..]
+[config var=script=../netconf-console]
+[config var=extra_args=]
+[global ncc_cmd=PYTHONPATH=$$PYTHONPATH:$pythonpath $script $extra_args]
+
+[macro initialize]
+[shell confd]
+    [progress initialize]
+    !cd conf
+    !rm confd-cdb/*.cdb
+    !make stop all start
+    !confd --status
+    ?http://tail-f.com/ns/example/dhcpd
+    ?SH-PROMPT
+[endmacro]
+
+[macro default-lease-test len]
+    [invoke default-lease-test-prompt $len SH-PROMPT]
+[endmacro]
+
+[macro default-lease-test-prompt len prompt]
+    """??
+    <data xmlns="urn:ietf:params:xml:ns:netconf:base:1.0" xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
+      <dhcp xmlns="http://tail-f.com/ns/example/dhcpd">
+        <defaultLeaseTime>PT$len</defaultLeaseTime>
+      </dhcp>
+    </data>
+
+    $prompt
+    """
+[endmacro]
+
+[macro empty-data]
+    """???
+    <data xmlns="urn:ietf:params:xml:ns:netconf:base:1.0" xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0"/>
+
+    SH-PROMPT
+    """
+[endmacro]
