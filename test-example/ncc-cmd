@@ -1,4 +1,18 @@
-netconf-console --host 172.16.166.192 --port 830 -u admin -p admin --get-schema=com-att-device
+#get schema
+netconf-console --host 172.16.166.192 --port 830 -u admin -p admin --get-schema=org-openroadm-device
+
+#hello
 netconf-console --host 172.16.166.192 --port 830 -u admin -p admin --hello
+
+#get all data
+netconf-console --host 172.16.166.192 --port 830 -u admin -p admin --get
+
+#get all config
 netconf-console --host 172.16.166.192 --port 830 -u admin -p admin --get-config
+
+#send netconf xml requests in a file
 netconf-console --host 172.16.166.192 --port 830 -u admin -p admin cmd-get
+
+#capture response to a file
+netconf-console --host 172.16.166.192 --port 830 -u admin -p admin --hello > hello-response.xml
+
