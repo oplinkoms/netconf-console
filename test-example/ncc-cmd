@@ -1,0 +1,4 @@
+netconf-console --host 172.16.166.192 --port 830 -u admin -p admin --get-schema=com-att-device
+netconf-console --host 172.16.166.192 --port 830 -u admin -p admin --hello
+netconf-console --host 172.16.166.192 --port 830 -u admin -p admin --get-config
+netconf-console --host 172.16.166.192 --port 830 -u admin -p admin cmd-get
